@@ -18,6 +18,20 @@ let browserMode: 'launched' | 'connected' | undefined;
 
 export type Channel = 'release' | 'beta' | 'nightly';
 
+export function linuxBraveExecutableCandidates(channel: Channel): string[] {
+  const paths: Record<Channel, string[]> = {
+    release: [
+      'brave-browser',
+      'brave-browser-stable',
+      'brave-origin',
+      '/opt/brave-origin-bin/brave',
+    ],
+    beta: ['brave-browser-beta'],
+    nightly: ['brave-browser-nightly'],
+  };
+  return paths[channel];
+}
+
 // Heavy pages (e.g. Studio module dev bundles >100MB) cannot ack
 // `Network.enable` and other auto-attached domain calls within
 // puppeteer's default 180s. Once that fires, the CDP connection is
@@ -68,7 +82,7 @@ function makeTargetFilter(enableExtensions = false) {
   };
 }
 
-function resolveBraveExecutablePath(channel?: Channel): string {
+export function resolveBraveExecutablePath(channel?: Channel): string {
   const envPath = process.env['BRAVE_PATH'];
   if (envPath) {
     if (!fs.existsSync(envPath)) {
@@ -98,22 +112,31 @@ function resolveBraveExecutablePath(channel?: Channel): string {
   }
 
   if (platform === 'linux') {
-    const paths: Record<Channel, string[]> = {
-      release: ['brave-browser', 'brave-browser-stable'],
-      beta: ['brave-browser-beta'],
-      nightly: ['brave-browser-nightly'],
-    };
-    const candidates = paths[channel ?? 'release'];
+    const candidates = linuxBraveExecutableCandidates(channel ?? 'release');
     for (const candidate of candidates) {
-      try {
-        const resolvedPath = execSync(`which ${candidate}`, {
-          encoding: 'utf8',
-        }).trim();
-        if (resolvedPath) {
-          return resolvedPath;
+      if (path.isAbsolute(candidate)) {
+        try {
+          fs.accessSync(candidate, fs.constants.X_OK);
+          return candidate;
+        } catch {
+          // try next candidate
         }
-      } catch {
-        // try next candidate
+        continue;
+      }
+
+      for (const pathEntry of (process.env['PATH'] ?? '').split(
+        path.delimiter,
+      )) {
+        if (!pathEntry) {
+          continue;
+        }
+        const resolvedPath = path.join(pathEntry, candidate);
+        try {
+          fs.accessSync(resolvedPath, fs.constants.X_OK);
+          return resolvedPath;
+        } catch {
+          // try next PATH entry
+        }
       }
     }
     throw new Error(
@@ -188,7 +211,7 @@ function resolveBraveExecutablePath(channel?: Channel): string {
   throw new Error(`Unsupported platform: ${platform}`);
 }
 
-function resolveBraveUserDataDir(channel?: Channel): string {
+export function resolveBraveUserDataDir(channel?: Channel): string {
   const platform = os.platform();
   const home = os.homedir();
 
@@ -222,12 +245,24 @@ function resolveBraveUserDataDir(channel?: Channel): string {
   if (platform === 'linux') {
     const configDir =
       process.env['XDG_CONFIG_HOME'] ?? path.join(home, '.config');
-    const dirs: Record<Channel, string> = {
-      release: path.join(configDir, 'BraveSoftware', 'Brave-Browser'),
-      beta: path.join(configDir, 'BraveSoftware', 'Brave-Browser-Beta'),
-      nightly: path.join(configDir, 'BraveSoftware', 'Brave-Browser-Nightly'),
+    const dirs: Record<Channel, string[]> = {
+      release: [
+        path.join(configDir, 'BraveSoftware', 'Brave-Browser'),
+        path.join(configDir, 'BraveSoftware', 'Brave-Origin'),
+      ],
+      beta: [path.join(configDir, 'BraveSoftware', 'Brave-Browser-Beta')],
+      nightly: [path.join(configDir, 'BraveSoftware', 'Brave-Browser-Nightly')],
     };
-    return dirs[channel ?? 'release'];
+    const candidates = dirs[channel ?? 'release'];
+    return (
+      candidates.find(candidate => {
+        return fs.existsSync(path.join(candidate, 'DevToolsActivePort'));
+      }) ??
+      candidates.find(candidate => {
+        return fs.existsSync(candidate);
+      }) ??
+      candidates[0]
+    );
   }
 
   if (platform === 'win32') {
