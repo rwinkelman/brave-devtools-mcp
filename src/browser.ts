@@ -32,6 +32,18 @@ export function linuxBraveExecutableCandidates(channel: Channel): string[] {
   return paths[channel];
 }
 
+function isExecutableFile(candidate: string): boolean {
+  try {
+    if (!fs.statSync(candidate).isFile()) {
+      return false;
+    }
+    fs.accessSync(candidate, fs.constants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 // Heavy pages (e.g. Studio module dev bundles >100MB) cannot ack
 // `Network.enable` and other auto-attached domain calls within
 // puppeteer's default 180s. Once that fires, the CDP connection is
@@ -115,11 +127,8 @@ export function resolveBraveExecutablePath(channel?: Channel): string {
     const candidates = linuxBraveExecutableCandidates(channel ?? 'release');
     for (const candidate of candidates) {
       if (path.isAbsolute(candidate)) {
-        try {
-          fs.accessSync(candidate, fs.constants.X_OK);
+        if (isExecutableFile(candidate)) {
           return candidate;
-        } catch {
-          // try next candidate
         }
         continue;
       }
@@ -131,11 +140,8 @@ export function resolveBraveExecutablePath(channel?: Channel): string {
           continue;
         }
         const resolvedPath = path.join(pathEntry, candidate);
-        try {
-          fs.accessSync(resolvedPath, fs.constants.X_OK);
+        if (isExecutableFile(resolvedPath)) {
           return resolvedPath;
-        } catch {
-          // try next PATH entry
         }
       }
     }

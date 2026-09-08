@@ -993,7 +993,8 @@ instance. It shows a dialog asking for user permission.
 On Linux, automatic connection discovers both the standard `Brave-Browser`
 profile and the `Brave-Origin` profile used by Manjaro's `brave-origin-bin`
 package. When both profiles exist, it selects the one with an active remote
-debugging port.
+debugging marker (`DevToolsActivePort`). The subsequent connection attempt
+validates the marker contents and reports an error if it is stale.
 
 Clicking **Allow** results in the Brave DevTools MCP server opening
 [developers.chrome.com](http://developers.chrome.com) and taking a performance

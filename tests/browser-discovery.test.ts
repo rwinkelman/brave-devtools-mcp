@@ -72,6 +72,49 @@ describe(
       assert.strictEqual(resolveBraveExecutablePath('release'), executable);
     });
 
+    it('skips executable directories that have a browser candidate name', () => {
+      const binDirectory = temporaryDirectory();
+      fs.mkdirSync(path.join(binDirectory, 'brave-browser'), {mode: 0o755});
+      const executable = path.join(binDirectory, 'brave-origin');
+      fs.writeFileSync(executable, '#!/bin/sh\n');
+      fs.chmodSync(executable, 0o755);
+      delete process.env['BRAVE_PATH'];
+      process.env['PATH'] = binDirectory;
+
+      assert.strictEqual(resolveBraveExecutablePath('release'), executable);
+    });
+
+    it('skips regular browser candidates without execute permission', () => {
+      const binDirectory = temporaryDirectory();
+      fs.writeFileSync(
+        path.join(binDirectory, 'brave-browser'),
+        '#!/bin/sh\n',
+        {
+          mode: 0o644,
+        },
+      );
+      const executable = path.join(binDirectory, 'brave-origin');
+      fs.writeFileSync(executable, '#!/bin/sh\n');
+      fs.chmodSync(executable, 0o755);
+      delete process.env['BRAVE_PATH'];
+      process.env['PATH'] = binDirectory;
+
+      assert.strictEqual(resolveBraveExecutablePath('release'), executable);
+    });
+
+    it('accepts an executable symlink whose target is a regular file', () => {
+      const binDirectory = temporaryDirectory();
+      const target = path.join(binDirectory, 'brave-origin-bin');
+      const executable = path.join(binDirectory, 'brave-origin');
+      fs.writeFileSync(target, '#!/bin/sh\n');
+      fs.chmodSync(target, 0o755);
+      fs.symlinkSync(target, executable);
+      delete process.env['BRAVE_PATH'];
+      process.env['PATH'] = binDirectory;
+
+      assert.strictEqual(resolveBraveExecutablePath('release'), executable);
+    });
+
     it('uses the Brave-Origin profile when it is the installed release profile', () => {
       const configDirectory = temporaryDirectory();
       const originProfile = path.join(
@@ -85,7 +128,7 @@ describe(
       assert.strictEqual(resolveBraveUserDataDir('release'), originProfile);
     });
 
-    it('prefers the release profile with an active debugging port', () => {
+    it('prefers the release profile with a DevToolsActivePort marker', () => {
       const configDirectory = temporaryDirectory();
       const standardProfile = path.join(
         configDirectory,
