@@ -17,12 +17,14 @@ export const toolOptions = {
   emulateFocusedPages: {
     type: 'boolean',
     default: true,
+    reloadable: true,
     description:
       'When true (default), each discovered page emulates OS focus so multi-agent workflows see focused document APIs. Set --no-emulate-focused-pages when attaching to a visible Brave window so passive MCP tools do not steal desktop focus from the user.',
   },
   backgroundPages: {
     type: 'boolean',
     default: false,
+    reloadable: true,
     description:
       'When true, new_page opens tabs in the background by default (unless the tool call sets background=false). Prefer this when agents share a visible Brave window so new tabs do not raise the browser over the user.',
   },
